@@ -11,7 +11,7 @@ cd "$TMP"
 git init -q -b gh-pages
 git add -A
 git commit -q -m "Publicação $(date '+%d/%m/%Y %H:%M')"
-git push -q -f "$(git -C "$OLDPWD" remote get-url origin)" gh-pages
+git -c credential.helper= -c credential.helper='!gh auth git-credential' push -q -f "$(git -C "$OLDPWD" remote get-url origin)" gh-pages
 cd - > /dev/null
 rm -rf "$TMP"
 echo "Publicado: https://juliarechdasilva.github.io/life-os/ (pode levar 1–2 minutos para atualizar)"
