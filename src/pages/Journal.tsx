@@ -1,7 +1,7 @@
 import { Camera, Download, History as HistoryIcon, Image as ImageIcon, Lock, MapPin, Paperclip, Plus, Search, Star, Trash2, Unlock, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Card, Empty, Field, Modal, Tabs, TagInput } from '../components/ui'
-import { download, journalToMarkdown } from '../lib/backup'
+import { journalToMarkdown, shareOrDownload } from '../lib/backup'
 import { deleteFile } from '../lib/db'
 import { getAttachment, lock, putAttachment, unlock } from '../lib/vault'
 import { addDays, addMonths, fmtLong, fmtRelative, today } from '../lib/dates'
@@ -230,10 +230,10 @@ function JournalInner() {
             <Card title="Exportar">
               <p className="small muted" style={{ marginBottom: 10 }}>Baixe uma cópia do diário. O arquivo fica no seu aparelho — guarde em local seguro.</p>
               <div className="row wrap">
-                <button className="btn sm" disabled={!data.journal.length} onClick={() => download(`diario-life-os-${ref}.md`, journalToMarkdown(data.journal), 'text/markdown')}>
+                <button className="btn sm" disabled={!data.journal.length} onClick={() => shareOrDownload(`diario-life-os-${ref}.md`, journalToMarkdown(data.journal), 'text/markdown')}>
                   <Download size={15} /> Texto (.md)
                 </button>
-                <button className="btn sm" disabled={!data.journal.length && !data.memories.length} onClick={() => download(`diario-life-os-${ref}.json`, JSON.stringify({ app: 'life-os', tipo: 'diario', exportadoEm: new Date().toISOString(), entradas: data.journal, memorias: data.memories }, null, 2))}>
+                <button className="btn sm" disabled={!data.journal.length && !data.memories.length} onClick={() => shareOrDownload(`diario-life-os-${ref}.json`, JSON.stringify({ app: 'life-os', tipo: 'diario', exportadoEm: new Date().toISOString(), entradas: data.journal, memorias: data.memories }, null, 2), 'application/json')}>
                   <Download size={15} /> Dados (.json)
                 </button>
               </div>

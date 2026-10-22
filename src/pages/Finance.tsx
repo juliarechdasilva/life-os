@@ -2,7 +2,7 @@ import { Download, Edit3, PiggyBank, Plus, Repeat, Search, Trash2, TrendingDown,
 import { useEffect, useMemo, useState } from 'react'
 import { Donut, MonthBars } from '../components/charts'
 import { Card, ColorPick, Empty, Field, Modal, Progress, Seg, Tabs } from '../components/ui'
-import { download } from '../lib/backup'
+import { shareOrDownload } from '../lib/backup'
 import { addMonths, fmtDate, fmtRelative, MONTHS, MONTHS_SHORT, today } from '../lib/dates'
 import { balance, byCategory, centsToInput, fmtMoney, lastMonths, monthTotals, parseMoney, savedIn, toCSV } from '../lib/finance'
 import { norm } from '../lib/nlp'
@@ -273,7 +273,7 @@ function Transactions() {
             </option>
           ))}
         </select>
-        <button className="btn sm" disabled={!list.length} onClick={() => download(`life-os-financas-${today()}.csv`, toCSV(list, data.finCategories), 'text/csv')}>
+        <button className="btn sm" disabled={!list.length} onClick={() => shareOrDownload(`life-os-financas-${today()}.csv`, toCSV(list, data.finCategories), 'text/csv')}>
           <Download size={15} /> Exportar CSV
         </button>
       </div>

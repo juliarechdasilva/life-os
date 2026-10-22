@@ -2,7 +2,7 @@
 // Uso: com o app rodando (npm run dev -- --port 5317), execute: node tests/e2e.mjs
 // Cobre os critérios de aceitação: persistência, CRUD, conflitos, projetos,
 // hábitos, finanças, diário + busca, exportação, reorganização e responsividade.
-import { chromium } from 'playwright'
+import { chromium, webkit } from 'playwright'
 import { mkdirSync, readFileSync } from 'node:fs'
 
 const URL = process.env.APP_URL ?? 'http://localhost:5317/'
@@ -23,9 +23,30 @@ const assert = (c, msg) => {
   if (!c) throw new Error(msg)
 }
 
-const browser = await chromium.launch({ channel: process.env.PW_CHANNEL ?? 'chrome' })
-const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'pt-BR', timezoneId: 'America/Sao_Paulo', acceptDownloads: true })
+// PW_BROWSER=webkit testa no motor do Safari (iPhone); padrão: Chrome instalado
+const useWebkit = process.env.PW_BROWSER === 'webkit'
+const browser = useWebkit ? await webkit.launch() : await chromium.launch({ channel: process.env.PW_CHANNEL ?? 'chrome' })
+const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'pt-BR', timezoneId: 'America/Sao_Paulo', acceptDownloads: true, ...(useWebkit ? { serviceWorkers: 'block', isMobile: true, hasTouch: true, deviceScaleFactor: 3, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1' } : {}) })
 const page = await ctx.newPage()
+// No iPhone o app usa a folha de compartilhar em vez de baixar: o teste captura o arquivo entregue a ela.
+if (useWebkit)
+  await page.addInitScript(() => {
+    navigator.share = async (d) => {
+      window.__shared = await d.files[0].text()
+    }
+    navigator.canShare = () => true
+  })
+/** Executa a ação e devolve o conteúdo do arquivo gerado (download no computador, compartilhar no iPhone). */
+async function fileFrom(action) {
+  if (useWebkit) {
+    await page.evaluate(() => (window.__shared = null))
+    await action()
+    await page.waitForFunction(() => window.__shared)
+    return page.evaluate(() => window.__shared)
+  }
+  const [dl] = await Promise.all([page.waitForEvent('download'), action()])
+  return readFileSync(await dl.path(), 'utf8')
+}
 await page.clock.setFixedTime(new Date('2026-10-22T10:00:00-03:00')) // quinta-feira, 10h
 const errors = []
 page.on('pageerror', (e) => errors.push(e.message))
@@ -178,8 +199,7 @@ await step('Meta de economia + movimentação financeira', async () => {
 
 await step('Exportar CSV de finanças válido', async () => {
   await page.getByRole('tab', { name: 'Movimentações' }).click()
-  const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Exportar CSV' }).click()])
-  const text = readFileSync(await dl.path(), 'utf8')
+  const text = await fileFrom(() => page.getByRole('button', { name: 'Exportar CSV' }).click())
   assert(text.includes('Mercado') && text.includes('-42,90') && text.split('\r\n').length === 3, 'CSV inesperado')
 })
 
@@ -270,8 +290,7 @@ await step('Estudos: matéria, prova, cronograma e cronômetro de foco', async (
 
 await step('Exportar backup completo e validar o arquivo', async () => {
   await go('configuracoes')
-  const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: /Exportar backup completo/ }).click()])
-  const b = JSON.parse(readFileSync(await dl.path(), 'utf8'))
+  const b = JSON.parse(await fileFrom(() => page.getByRole('button', { name: /Exportar backup completo|Salvar backup/ }).click()))
   assert(b.app === 'life-os' && b.data.tasks.length >= 4 && b.data.journal.length === 1 && b.data.events.length === 2, 'backup incompleto')
   assert(b.settings.name === 'Ana', 'configurações ausentes')
 })
@@ -305,9 +324,7 @@ await step('Backup protegido por senha: exporta e restaura', async () => {
   await page.getByText('Proteger o arquivo de backup com senha').click()
   await page.getByLabel('Senha do backup', { exact: true }).fill('backup123')
   await page.getByLabel('Repita a senha do backup').fill('backup123')
-  const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: /Exportar backup completo/ }).click()])
-  const path = await dl.path()
-  const txt = readFileSync(path, 'utf8')
+  const txt = await fileFrom(() => page.getByRole('button', { name: /Exportar backup completo|Salvar backup/ }).click())
   assert(JSON.parse(txt).protegido === true && !/Estudar química/.test(txt), 'backup não está protegido')
   await page.locator('input[type=file]').setInputFiles({ name: 'b.json', mimeType: 'application/json', buffer: Buffer.from(txt) })
   await page.getByLabel('Senha do backup').last().fill('backup123')
@@ -321,8 +338,7 @@ await step('Backup protegido por senha: exporta e restaura', async () => {
 await step('Exportar agenda para o calendário do celular (.ics)', async () => {
   await go('agenda?data=2026-10-23')
   await page.getByTitle('Levar para o calendário do celular').click()
-  const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: /Gerar arquivo/ }).click()])
-  const ics = readFileSync(await dl.path(), 'utf8')
+  const ics = await fileFrom(() => page.getByRole('button', { name: /Gerar arquivo/ }).click())
   assert(ics.startsWith('BEGIN:VCALENDAR') && ics.includes('SUMMARY:Aula de inglês') && ics.includes('BEGIN:VALARM'), 'ics inválido')
 })
 
