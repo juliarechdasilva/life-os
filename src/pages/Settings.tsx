@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ColorPick, Field, Modal, Seg, Switch, WeekdayPick } from '../components/ui'
 import { buildBackup, protectBackup, shareOrDownload, validateBackup } from '../lib/backup'
 import { restoreFromFile } from '../lib/restore'
+import { CloudSection } from '../components/Cloud'
 import { requestPersistence } from '../lib/db'
 import { toMin, today, WEEKDAYS_LONG } from '../lib/dates'
 import { defaultCategories, defaultFinCategories, defaultSettings } from '../lib/defaults'
@@ -569,8 +570,9 @@ function DataSection() {
         <p className="small muted">
           {total} registros salvos neste aparelho. {usage}
         </p>
+        <CloudSection />
         <p className="small">
-          Último backup: <b>{s.lastBackupAt ? new Date(s.lastBackupAt).toLocaleDateString('pt-BR') : 'nunca'}</b>
+          Último backup em arquivo: <b>{s.lastBackupAt ? new Date(s.lastBackupAt).toLocaleDateString('pt-BR') : 'nunca'}</b>
           {s.journalLock.encrypted && ' · o diário vai criptografado no backup'}
         </p>
         <Switch checked={protect} onChange={setProtect} label="Proteger o arquivo de backup com senha (recomendado se for guardar na nuvem)" />

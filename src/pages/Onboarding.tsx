@@ -3,6 +3,7 @@ import { useRef, useState } from 'react'
 import { Leaf } from '../components/ui'
 import { saveSettings, useSettings } from '../lib/store'
 import { restoreFromFile } from '../lib/restore'
+import { CloudRestoreModal } from '../components/Cloud'
 import { attempt } from '../lib/ui'
 
 function Plant() {
@@ -33,6 +34,7 @@ export default function Onboarding() {
   }
 
   const restore = (file: File) => restoreFromFile(file)
+  const [cloud, setCloud] = useState(false)
 
   return (
     <div className="welcome">
@@ -61,6 +63,9 @@ export default function Onboarding() {
           <button type="button" className="btn block" onClick={() => fileRef.current?.click()}>
             <Upload size={16} /> Restaurar um backup
           </button>
+          <button type="button" className="btn block ghost" onClick={() => setCloud(true)}>
+            Restaurar do backup automático (GitHub)
+          </button>
           <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={(e) => e.target.files?.[0] && restore(e.target.files[0])} />
         </form>
         <div className="privacy-note">
@@ -78,6 +83,7 @@ export default function Onboarding() {
           <span>Funciona offline</span>
         </div>
       </div>
+      {cloud && <CloudRestoreModal onClose={() => setCloud(false)} />}
     </div>
   )
 }

@@ -1,6 +1,7 @@
 import { AlarmClock, ArrowRight, CalendarPlus, Check, Clock, Coffee, ListPlus, Moon, Pin, PinOff, Sparkles, Sun, Sunrise, Target, Trash2, Wand2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { TaskRow } from '../components/TaskRow'
+import { NewerBackupBanner, useCloud } from '../components/Cloud'
 import { Card, Empty, Progress } from '../components/ui'
 import { addDays, fmtT, fmtDuration, fmtLong, fromMin, greeting, nowMin, startOfWeek, toMin, today, weekday } from '../lib/dates'
 import { fmtMoney } from '../lib/finance'
@@ -23,6 +24,7 @@ export async function toggleHabit(h: Habit, d: string, value: 'feito' | 'descans
 export default function Dashboard() {
   const data = useData()
   const settings = useSettings()
+  const cloud = useCloud()
   const { params } = useRoute()
   const now = new Date()
   const ref = today(now)
@@ -74,8 +76,9 @@ export default function Dashboard() {
   const weekSpent = data.transactions.filter((t) => t.type === 'despesa' && inWeek(t.date)).reduce((s, t) => s + t.amountCents, 0)
 
   const records = Object.values(data).reduce((a, l) => a + l.length, 0) - data.categories.length - data.finCategories.length
-  const backupDays = settings.lastBackupAt ? Math.floor((now.getTime() - new Date(settings.lastBackupAt).getTime()) / 86400000) : null
-  const needBackup = records >= 10 && (backupDays == null || backupDays >= 7)
+  const lastBk = [settings.lastBackupAt, cloud?.enabled ? cloud.lastAt : undefined].filter(Boolean).sort().pop()
+  const backupDays = lastBk ? Math.floor((now.getTime() - new Date(lastBk).getTime()) / 86400000) : null
+  const needBackup = records >= 10 && (backupDays == null || backupDays >= 7) && !(cloud?.enabled && !cloud.lastError)
   const isEmpty = !data.tasks.length && !data.events.length && !data.goals.length && !data.habits.length
 
   return (
@@ -106,6 +109,7 @@ export default function Dashboard() {
         </div>
       )}
 
+      <NewerBackupBanner />
       {needBackup && (
         <div className="callout warn" style={{ marginBottom: 16 }}>
           <span className="grow">

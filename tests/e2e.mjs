@@ -50,7 +50,9 @@ async function fileFrom(action) {
 await page.clock.setFixedTime(new Date('2026-10-22T10:00:00-03:00')) // quinta-feira, 10h
 const errors = []
 page.on('pageerror', (e) => errors.push(e.message))
-page.on('console', (m) => m.type() === 'error' && !/status of 429/.test(m.text()) && errors.push(m.text())) // 429 é simulado de propósito
+// Falhas de rede contam como erro, exceto as respostas esperadas das APIs externas simuladas/com chave falsa (GitHub, Groq).
+page.on('console', (m) => m.type() === 'error' && !/Failed to load resource/.test(m.text()) && errors.push(m.text()))
+page.on('response', (r) => r.status() >= 400 && !/api\.github\.com|api\.groq\.com/.test(r.url()) && errors.push(`${r.status()} ${r.url()}`))
 
 const go = async (path) => {
   await page.goto(URL + '#/' + path)
@@ -372,6 +374,48 @@ await step('IA opcional (Groq simulada): configura, responde e volta às regras 
   await page.getByLabel('Enviar').click()
   await page.getByText(/limite gratuito de uso da IA/).waitFor()
   await shot('21-assistente-ia')
+})
+
+await step('Backup automático no GitHub (simulado): ativa, envia criptografado e lista versões', async () => {
+  const commits = []
+  await page.route('https://api.github.com/**', async (route) => {
+    const req = route.request()
+    const u = new globalThis.URL(req.url())
+    const json = (o, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(o) })
+    if (u.pathname === '/user') return json({ login: 'ana' })
+    if (u.pathname === '/repos/ana/life-os-backup') return json({ private: true, permissions: { push: true } })
+    if (u.pathname.endsWith('/commits')) return json([...commits].reverse().map((c) => ({ sha: c.sha, commit: { message: c.message, committer: { date: c.date } } })))
+    if (u.pathname.endsWith('/contents/life-os-backup.json')) {
+      if (req.method() === 'PUT') {
+        const b = JSON.parse(req.postData())
+        commits.push({ sha: 'c' + commits.length, message: b.message, date: new Date().toISOString(), content: Buffer.from(b.content, 'base64').toString('utf8') })
+        return json({ content: {} })
+      }
+      const ref = u.searchParams.get('ref')
+      if (ref) return route.fulfill({ status: 200, body: commits.find((c) => c.sha === ref).content })
+      return commits.length ? json({ sha: 'x' }) : json({ message: 'Not Found' }, 404)
+    }
+    return json({}, 404)
+  })
+  await go('configuracoes?secao=dados')
+  await page.getByRole('button', { name: 'Configurar' }).click()
+  await page.getByPlaceholder('github_pat_…').fill('github_pat_teste123')
+  await page.getByLabel('Senha de backup (8+ caracteres)').fill('backup forte 1')
+  await page.getByLabel('Repita a senha de backup').fill('backup forte 1')
+  await page.getByText('Vou guardar essa senha').click()
+  await page.getByRole('button', { name: 'Ativar backup automático' }).click()
+  await page.getByText('Backup automático ativado e primeiro backup enviado!').waitFor()
+  await page.getByText('Backup automático ativo').waitFor()
+  assert(commits.length === 1 && !/Estudar química/.test(commits[0].content) && JSON.parse(commits[0].content).protegido, 'backup no GitHub não está criptografado')
+  await page.getByRole('button', { name: 'Restaurar uma versão' }).click()
+  await page.getByText('mais recente').waitFor()
+  await shot('22-backup-github')
+  await page.keyboard.press('Escape')
+  // desativa para não tentar enviar de verdade com o token falso
+  await page.getByRole('button', { name: 'Desativar' }).last().click()
+  await page.getByRole('button', { name: 'Desativar' }).last().click()
+  await page.getByText('Backup automático desativado.').waitFor()
+  await page.unroute('https://api.github.com/**')
 })
 
 await step('Dados continuam após "reiniciar" (nova aba)', async () => {

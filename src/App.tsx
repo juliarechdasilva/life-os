@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { BottomNav, EditorHost, MorePage, Sidebar, Topbar } from './components/shell'
 import { ConfirmHost, Leaf, Toasts } from './components/ui'
 import { startReminders } from './lib/reminders'
+import { startCloud } from './lib/cloud'
 import { useApp } from './lib/store'
 import { setTimeFormat } from './lib/dates'
 import { openEditor, useRoute } from './lib/ui'
@@ -39,7 +40,10 @@ export default function App() {
   useTheme(app.settings.theme)
   setTimeFormat(app.settings.timeFormat)
   useEffect(() => {
-    if (app.status === 'ready') startReminders()
+    if (app.status === 'ready') {
+      startReminders()
+      startCloud()
+    }
   }, [app.status])
   useEffect(() => {
     window.scrollTo(0, 0)
